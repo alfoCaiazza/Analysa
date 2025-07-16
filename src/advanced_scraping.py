@@ -85,10 +85,10 @@ def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100):
         # Skipping oldest post already in the db
         date = datetime.fromtimestamp(submission.created_utc, timezone.utc)
         if date <= max_date:
-            logging.info(f"Reached already-scraped posts at {date.isoformat()}, stopping.")
-            break
+            logging.info(f"Reached already-scraped posts at {date.isoformat()}.")
+            continue
         
-        logging.info(f"Processing post {iteration + 1}/{limit}")
+        logging.info(f"Processing post {iteration + 1}")
 
         if submission.selftext == '':
             logging.info("Skipping post due to empty body text")
@@ -96,7 +96,7 @@ def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100):
         
         # Getting data of the main post
         author = str(submission.author) if submission.author else "[deleted]"
-        id = submission.id
+        id = submission.fullname
         num_comments = submission.num_comments
         over_18 = submission.over_18
         score = submission.score
@@ -120,7 +120,7 @@ def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100):
             for comment in submission.comments.list():
                 if comment.body == '' or comment.is_submitter: # Skipping empty comments or comments where the author is the same of the root post
                     continue
-                comment_id = comment.id
+                comment_id = comment.fullname
                 comment_text = comment.body
                 comment_author = str(comment.author) if comment.author else "[deleted]"
                 comment_date = datetime.fromtimestamp(comment.created_utc, timezone.utc)
@@ -154,7 +154,7 @@ def main():
     setup_logging()
     load_dotenv()
 
-    targeted_subreddits = ["AskEurope"]
+    targeted_subreddits = ["PoliticalDiscussion", "AmItheAsshole", "offmychest", "changemyview"]
 
     reddit = praw.Reddit(
         client_id = os.getenv('REDDIT_CLIENT_ID'),
@@ -178,7 +178,7 @@ def main():
 
     
     elapsed_time = time.time() - start_time
-    logging.info(f"Total execution time: {elapsed_time} ms")
+    logging.info(f"Total execution time: {elapsed_time} s")
 
 if __name__ == "__main__":
     main()
