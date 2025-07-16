@@ -8,6 +8,8 @@ import pandas as pd
 import time
 import sqlite3
 from datetime import datetime, timezone
+import random
+from prawcore.exceptions import RequestException, ResponseException, ServerError
 
 def setup_logging():
     logging.basicConfig(
@@ -20,75 +22,83 @@ def create_tables(conn):
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS posts(
-        Id TEXT PRIMARY KEY,
-        Subreddit TEXT,
-        Author TEXT,
-        Title TEXT,
-        Date TEXT,
-        Text TEXT,
-        Num_comments INTEGER,
-        Over_18 INTEGER,
-        Score INTEGER
+        id TEXT PRIMARY KEY,
+        subreddit TEXT,
+        author TEXT,
+        title TEXT,
+        date TEXT,
+        text TEXT,
+        num_comments INTEGER,
+        over_18 INTEGER,
+        score INTEGER
     )      
     '''
     )
 
     c.execute('''
+        CREATE TABLE IF NOT EXISTS state (
+        subreddit TEXT PRIMARY KEY,
+        last_max_date TEXT)        
+    ''')
+
+    c.execute('''
        CREATE TABLE IF NOT EXISTS comments(
-        Post_id TEXT,
-        Comment_Id TEXT PRIMARY KEY,
-        Text TEXT,
-        Author TEXT,
-        Date TEXT,
-        Parent_id TEXT,
-        Depth INTEGER,
-        Num_replies INTEGER,
-        Score INTEGER,
-        FOREIGN KEY (Post_id) REFERENCES posts(Id)
+        post_id TEXT,
+        comment_Id TEXT PRIMARY KEY,
+        text TEXT,
+        author TEXT,
+        date TEXT,
+        parent_id TEXT,
+        depth INTEGER,
+        num_replies INTEGER,
+        score INTEGER,
+        FOREIGN KEY (post_id) REFERENCES posts(id)
     )  
     '''
     )
 
     conn.commit()
 
-def get_last_after(conn, subreddit):
+def get_last_max_date(conn, subreddit):
     c = conn.cursor()
-    c.execute('SELECT after FROM state WHERE subreddit = ?', (subreddit,))
-    res = c.fetchone()
-    return res[0] if res else ''
+    c.execute('SELECT last_max_date FROM state WHERE subreddit = ?', (subreddit,))
+    row = c.fetchone()
+    if row and row[0]:
+        return datetime.fromisoformat(row[0])
+    else:
+        return datetime.min.replace(tzinfo=timezone.utc)
 
-def set_last_after(conn,subreddit, after):
+def set_last_max_date(conn, subreddit, max_date):
     c = conn.cursor()
-    c.execute('DELETE FROM state')
-    c.execute('INSERT INTO state (subreddit, after) VALUES (?,?)', (subreddit,after))
-
+    c.execute(
+        'INSERT OR REPLACE INTO state (subreddit, last_max_date) VALUES (?, ?)',
+        (subreddit, max_date.isoformat())
+    )
     conn.commit()
 
-def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100):
+def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100, post_per_subreddit=2000):
     # Loading database cursors
     c = conn.cursor()
 
     ops_since_commit = 0
+    newest_date = None
+    total_subreddit_posts = 0
 
     # Getting the oldest post in the database
-    c.execute('SELECT MAX(date) FROM posts')
-    row = c.fetchone()
-    max_date = row[0]
-    if max_date is not None:
-        max_date = datetime.fromisoformat(max_date)
-    else:
-        max_date = datetime.min.replace(tzinfo=timezone.utc)
-
-    logging.info(f"Most recent post in DB: {max_date.isoformat()}")
+    last_max_date = get_last_max_date(conn, subreddit.display_name)
+    logging.info(f"Most recent post in DB: {last_max_date.isoformat()}")
 
     for iteration, submission in enumerate(subreddit.new(limit=limit)):
         # Skipping oldest post already in the db
         date = datetime.fromtimestamp(submission.created_utc, timezone.utc)
-        if date <= max_date:
+        if date <= last_max_date:
             logging.info(f"Reached already-scraped posts at {date.isoformat()}.")
             continue
         
-        logging.info(f"Processing post {iteration + 1}")
+        logging.info(f"Processing post {iteration + 1}: {submission.id} at {date.isoformat()}")
+
+        if newest_date is None or date > newest_date:
+            newest_date = date
 
         if submission.selftext == '':
             logging.info("Skipping post due to empty body text")
@@ -114,36 +124,48 @@ def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100):
         except Exception as e:
             logging.error(f"Failed to insert post {id}: {e}")
 
-        # Getting data of the comments tree
-        try:
-            submission.comments.replace_more(limit=None)
-            for comment in submission.comments.list():
-                if comment.body == '' or comment.is_submitter: # Skipping empty comments or comments where the author is the same of the root post
-                    continue
-                comment_id = comment.fullname
-                comment_text = comment.body
-                comment_author = str(comment.author) if comment.author else "[deleted]"
-                comment_date = datetime.fromtimestamp(comment.created_utc, timezone.utc)
-                comment_score = comment.score
-                parent_id = comment.parent_id
-                depth = comment.depth
-                num_replies = len(comment.replies)
+        # Comments processing with retry on rate limit errors
+        retries = 3
+        while retries > 0:
+            try:
+                submission.comments.replace_more(limit=None)
+                for comment in submission.comments.list():
+                    if comment.body == '' or comment.is_submitter:
+                        continue
+                    comment_id = comment.fullname
+                    comment_text = comment.body
+                    comment_author = str(comment.author) if comment.author else "[deleted]"
+                    comment_date = datetime.fromtimestamp(comment.created_utc, timezone.utc)
+                    comment_score = comment.score
+                    parent_id = comment.parent_id
+                    depth = comment.depth
+                    num_replies = len(comment.replies)
 
-                c.execute('''
-                        INSERT OR IGNORE INTO comments 
-                        (post_id, comment_id, text, author, date, parent_id, depth, num_replies, score)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (id, comment_id, comment_text, comment_author, comment_date.isoformat(), parent_id, depth, num_replies, comment_score)
-                )
-                ops_since_commit += 1
-        except Exception as e:
-            logging.error(f"Failed to process comments for post {id}: {e}")
+                    c.execute('''INSERT OR IGNORE INTO comments 
+                                (post_id, comment_id, text, author, date, parent_id, depth, num_replies, score)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                                (id, comment_id, comment_text, comment_author, comment_date.isoformat(),
+                                parent_id, depth, num_replies, comment_score))
+                    ops_since_commit += 1
+                break  # success, esci dal retry loop
+            except (RequestException, ResponseException, ServerError) as e:
+                logging.warning(f"Rate limit or server error: {e}. Retrying after delay...")
+                time.sleep(10)
+                retries -= 1
+        else:
+            logging.error(f"Failed to fetch comments for post {id} after retries.")
 
         # Batching commits
         if ops_since_commit >= batch_size:
             conn.commit()
             logging.info(f"Committed {batch_size} posts.")
             ops_since_commit = 0
+
+        # Sleep between posts
+        total_subreddit_posts += 1
+        if total_subreddit_posts > post_per_subreddit:
+            break
+        time.sleep(1)
 
     # Final commit
     if ops_since_commit > 0:
@@ -170,13 +192,12 @@ def main():
     start_time = time.time()
 
     for sub in targeted_subreddits:
-        time.sleep(10)
         subreddit = reddit.subreddit(sub)
 
         logging.info(f"Scraping subreddit /r/{subreddit.display_name}")
         reddit_scraping(subreddit, conn=conn)
+        time.sleep(random.uniform(8,15))
 
-    
     elapsed_time = time.time() - start_time
     logging.info(f"Total execution time: {elapsed_time} s")
 
