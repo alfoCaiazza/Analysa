@@ -59,24 +59,24 @@ def create_tables(conn):
 
     conn.commit()
 
-def get_last_max_date(conn, subreddit):
-    c = conn.cursor()
-    c.execute('SELECT last_max_date FROM state WHERE subreddit = ?', (subreddit,))
-    row = c.fetchone()
-    if row and row[0]:
-        return datetime.fromisoformat(row[0])
-    else:
-        return datetime.min.replace(tzinfo=timezone.utc)
+# def get_last_max_date(conn, subreddit):
+#     c = conn.cursor()
+#     c.execute('SELECT last_max_date FROM state WHERE subreddit = ?', (subreddit,))
+#     row = c.fetchone()
+#     if row and row[0]:
+#         return datetime.fromisoformat(row[0])
+#     else:
+#         return datetime.min.replace(tzinfo=timezone.utc)
 
-def set_last_max_date(conn, subreddit, max_date):
-    c = conn.cursor()
-    c.execute(
-        'INSERT OR REPLACE INTO state (subreddit, last_max_date) VALUES (?, ?)',
-        (subreddit, max_date.isoformat())
-    )
-    conn.commit()
+# def set_last_max_date(conn, subreddit, max_date):
+#     c = conn.cursor()
+#     c.execute(
+#         'INSERT OR REPLACE INTO state (subreddit, last_max_date) VALUES (?, ?)',
+#         (subreddit, max_date.isoformat())
+#     )
+#     conn.commit()
 
-def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100, post_per_subreddit=2000):
+def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100, post_per_subreddit=1000):
     # Loading database cursors
     c = conn.cursor()
 
@@ -85,23 +85,24 @@ def reddit_scraping(subreddit, limit=None, conn=None, batch_size=100, post_per_s
     total_subreddit_posts = 0
 
     # Getting the oldest post in the database
-    last_max_date = get_last_max_date(conn, subreddit.display_name)
-    logging.info(f"Most recent post in DB: {last_max_date.isoformat()}")
+    # last_max_date = get_last_max_date(conn, subreddit.display_name)
+    # logging.info(f"Most recent post in DB: {last_max_date.isoformat()}")
 
     for iteration, submission in enumerate(subreddit.new(limit=limit)):
         # Skipping oldest post already in the db
         date = datetime.fromtimestamp(submission.created_utc, timezone.utc)
-        if date <= last_max_date:
-            logging.info(f"Reached already-scraped posts at {date.isoformat()}.")
-            continue
+        # if date <= last_max_date:
+        #     logging.info(f"Reached already-scraped posts at {date.isoformat()}.")
+        #     continue
         
         logging.info(f"Processing post {iteration + 1}: {submission.id} at {date.isoformat()}")
 
-        if newest_date is None or date > newest_date:
-            newest_date = date
+        # if newest_date is None or date > newest_date:
+        #     newest_date = date
 
         if submission.selftext == '':
             logging.info("Skipping post due to empty body text")
+            total_subreddit_posts += 1
             continue
         
         # Getting data of the main post
@@ -176,13 +177,14 @@ def main():
     setup_logging()
     load_dotenv()
 
-    targeted_subreddits = ["PoliticalDiscussion", "AmItheAsshole", "offmychest", "changemyview"]
+    targeted_subreddits = ["PoliticalDiscussion", "AmItheAsshole", "offmychest", "changemyview", "TrueAskReddit"] 
 
     reddit = praw.Reddit(
         client_id = os.getenv('REDDIT_CLIENT_ID'),
         client_secret = os.getenv('REDDIT_CLIENT_SECRET'),
         user_agent = os.getenv('REDDIT_USER_AGENT')
     )
+
 
     # SQL database connection
     conn = sqlite3.connect('reddit-posts.db')
