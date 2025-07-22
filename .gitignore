@@ -1,4 +1,7 @@
 .analysa
-# reddit-posts.db
+reddit-posts.db
 .env
 .vscode
+.github
+src/data/nodes.csv
+src/data/edges.csv
