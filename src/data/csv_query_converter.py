@@ -19,7 +19,7 @@ cursor.execute('''
         GROUP BY author
     ) AS combined
     GROUP BY author
-    HAVING total_engagement > ?
+    HAVING total_engagement > ? AND author <> '[deleted]
 ''', (10,))
 
 distinct_users = cursor.fetchall()
@@ -33,7 +33,7 @@ cursor.execute('''
     FROM posts AS p
     JOIN comments AS c ON p.id = c.post_id
     GROUP BY p.author, c.author
-    HAVING weight > ?
+    HAVING weight > ? AND (p.author <> '[deleted]' OR c.author <> '[deleted]')
 ''', (2,))
 
 edges_type_ac = cursor.fetchall()
@@ -47,7 +47,7 @@ cursor.execute('''
     FROM comments AS parent
     JOIN comments AS child ON parent.comment_id = child.parent_id 
     GROUP BY child.author, parent.author
-    HAVING weight > ?
+    HAVING weight > ? AND (child.author <> '[deleted]' OR parent.author <> '[deleted]')
 ''', (2,))
 
 edges_type_cc = cursor.fetchall()
