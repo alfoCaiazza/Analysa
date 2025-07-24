@@ -62,7 +62,7 @@ print(f"Total edges identified: {len(edges_type_ac) + len(edges_type_cc)}")
 # Creating nodes csv file
 with open('src/data/nodes.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
-    writer.writerow(['id', 'engagement'])
+    writer.writerow(['id', 'engagement', 'num_posts', 'num_comments'])
     writer.writerows(distinct_users)
 
 # Creating edges csv file

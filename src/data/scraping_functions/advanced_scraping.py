@@ -37,7 +37,7 @@ def create_tables(conn):
     c.execute('''
        CREATE TABLE IF NOT EXISTS comments(
         post_id TEXT,
-        comment_Id TEXT PRIMARY KEY,
+        comment_id TEXT PRIMARY KEY,
         text TEXT,
         author TEXT,
         date TEXT,
