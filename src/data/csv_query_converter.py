@@ -8,18 +8,20 @@ cursor = connection.cursor()
 # Retrieving all the nodes (aka reddit users) with an engagement score greater than x
 # The engagement score is the sum of the number of comments and replies made by the user
 cursor.execute('''
-    SELECT author, SUM(engagement) AS total_engagement
+    SELECT author, SUM(engagement) AS total_engagement, COUNT(DISTINCT post_id) AS num_posts, COUNT(DISTINCT comment_id) AS num_comments
     FROM(
         SELECT author, SUM(num_comments) AS engagement
         FROM posts
+        WHERE author <> '[deleted]'
         GROUP BY author
             UNION ALL
         SELECT author, SUM(num_replies) AS engagement
         FROM comments
+        WHERE author <> '[deleted]'
         GROUP BY author
     ) AS combined
     GROUP BY author
-    HAVING total_engagement > ? AND author <> '[deleted]'
+    HAVING total_engagement > ?
 ''', (10,))
 
 distinct_users = cursor.fetchall()
