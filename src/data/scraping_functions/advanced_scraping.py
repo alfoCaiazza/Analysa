@@ -32,13 +32,6 @@ def create_tables(conn):
         over_18 INTEGER,
         score INTEGER
     )      
-    '''
-    )
-
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS state (
-        subreddit TEXT PRIMARY KEY,
-        last_max_date TEXT)        
     ''')
 
     c.execute('''
@@ -54,8 +47,7 @@ def create_tables(conn):
         score INTEGER,
         FOREIGN KEY (post_id) REFERENCES posts(id)
     )  
-    '''
-    )
+    ''')
 
     conn.commit()
 
