@@ -50,8 +50,8 @@ cursor.execute('''
     FROM posts AS p
     JOIN comments AS c ON p.id = c.post_id
     GROUP BY p.author, c.author
-    HAVING weight > ? AND (p.author <> '[deleted]' AND c.author <> '[deleted]') AND (p.author <> c.author)
-''', (2,))
+    HAVING (p.author <> '[deleted]' AND c.author <> '[deleted]') AND (p.author <> c.author)
+''')
 
 edges_type_ac = cursor.fetchall()
 
@@ -64,8 +64,8 @@ cursor.execute('''
     FROM comments AS parent
     JOIN comments AS child ON parent.comment_id = child.parent_id 
     GROUP BY child.author, parent.author
-    HAVING weight > ? AND (child.author <> '[deleted]' AND parent.author <> '[deleted]') AND (child.author <> parent.author)
-''', (2,))
+    HAVING (child.author <> '[deleted]' AND parent.author <> '[deleted]') AND (child.author <> parent.author)
+''')
 
 edges_type_cc = cursor.fetchall()
 
