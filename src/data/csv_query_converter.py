@@ -8,26 +8,41 @@ cursor = connection.cursor()
 # Retrieving all the nodes (aka reddit users) with an engagement score greater than x
 # The engagement score is the sum of the number of comments and replies made by the user
 cursor.execute('''
-    SELECT author, SUM(engagement) AS total_engagement, COUNT(DISTINCT id) AS num_posts, COUNT(DISTINCT comment_Id) AS num_comments
-    FROM(
-        SELECT author, id, SUM(num_comments) AS engagement, NULL AS comment_Id
-        FROM posts
-        WHERE author <> '[deleted]'
-        GROUP BY author
-            UNION ALL
-        SELECT author, comment_Id, SUM(num_replies) AS engagement, NULL AS id
-        FROM comments
-        WHERE author <> '[deleted]'
-        GROUP BY author
-    ) AS combined
+SELECT 
+    author,
+    COALESCE(post_engagement, 0) + COALESCE(comment_engagement, 0) AS total_engagement,
+    COALESCE(num_posts, 0) AS num_posts,
+    COALESCE(num_comments, 0) AS num_comments
+FROM (
+    SELECT author
+    FROM posts
+    WHERE author <> '[deleted]'
+    UNION
+    SELECT author
+    FROM comments
+    WHERE author <> '[deleted]'
+) AS all_authors
+LEFT JOIN (
+    SELECT author, COUNT(*) AS num_posts, SUM(num_comments) AS post_engagement
+    FROM posts
+    WHERE author <> '[deleted]'
     GROUP BY author
-    HAVING total_engagement > ?
+) AS p USING(author)
+LEFT JOIN (
+    SELECT author, COUNT(*) AS num_comments, SUM(num_replies) AS comment_engagement
+    FROM comments
+    WHERE author <> '[deleted]'
+    GROUP BY author
+) AS c USING(author)
+WHERE COALESCE(post_engagement, 0) + COALESCE(comment_engagement, 0) > ?
 ''', (10,))
 
 distinct_users = cursor.fetchall()
 
 print(f"Total distinct users : {len(distinct_users)}")
 print(f"Example of user : {distinct_users[0]}")
+
+valid_users = set(user[0] for user in distinct_users)
 
 # Retrieving edges type author-commenter where the author has more than x interactions with the commenter
 cursor.execute('''
@@ -59,6 +74,17 @@ print(f"Example of edge c-to-c : {edges_type_cc[0]}")
 
 print(f"Total edges identified: {len(edges_type_ac) + len(edges_type_cc)}")
 
+# Filtering edges to only include valid users
+filtered_edges_ac =[
+    (src, dst, weight) for src, dst, weight in edges_type_ac if src in valid_users and dst in valid_users
+]
+
+filtered_edges_cc = [
+    (src, dst, weight) for src, dst, weight in edges_type_cc if src in valid_users and dst in valid_users
+]
+
+print(f"Total filtered edges identified: {len(filtered_edges_ac) + len(filtered_edges_cc)}")
+
 # Creating nodes csv file
 with open('src/data/nodes.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
@@ -69,5 +95,5 @@ with open('src/data/nodes.csv', 'w') as csv_file:
 with open('src/data/edges.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
     writer.writerow(['source', 'target', 'weight'])
-    writer.writerows(edges_type_ac)
-    writer.writerows(edges_type_cc)
+    writer.writerows(filtered_edges_ac)
+    writer.writerows(filtered_edges_cc)
