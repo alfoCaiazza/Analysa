@@ -28,3 +28,4 @@ for u, v, d in tqdm(G_nx.edges(data=True), desc="Edges"):
 
 # net.show("graph.html", notebook=False) -> when using a notebook
 net.write_html("graph_v1.html")
+
