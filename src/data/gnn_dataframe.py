@@ -23,7 +23,7 @@ ordered_ids = list(user2idx.keys())
 nodes = nodes.set_index('id').loc[ordered_ids].reset_index()
 
 # Scaling features dei nodi
-features_to_scale = ['engagement','num_posts','num_comments','indegree','outdegree','degree','eccentricity','authority'] 
+features_to_scale = ['engagement','indegree','outdegree','degree','eccentricity','authority'] 
 node_scaler = MinMaxScaler()
 nodes[features_to_scale] = node_scaler.fit_transform(nodes[features_to_scale])
 nodes_features = torch.tensor(nodes[features_to_scale].values, dtype=torch.float)
