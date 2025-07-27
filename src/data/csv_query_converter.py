@@ -6,35 +6,19 @@ connection = sqlite3.connect('reddit-posts.db')
 cursor = connection.cursor()
 
 # Retrieving all the nodes (aka reddit users) with an engagement score greater than x
-# The engagement score is the sum of the number of comments and replies made by the user
+# The engagement score is the sum of an author occurrences in bot posts and comments table
 cursor.execute('''
-SELECT 
-    author,
-    COALESCE(post_engagement, 0) + COALESCE(comment_engagement, 0) AS total_engagement,
-    COALESCE(num_posts, 0) AS num_posts,
-    COALESCE(num_comments, 0) AS num_comments
-FROM (
-    SELECT author
-    FROM posts
-    WHERE author <> '[deleted]'
-    UNION
-    SELECT author
-    FROM comments
-    WHERE author <> '[deleted]'
-) AS all_authors
-LEFT JOIN (
-    SELECT author, COUNT(*) AS num_posts, SUM(num_comments) AS post_engagement
-    FROM posts
-    WHERE author <> '[deleted]'
-    GROUP BY author
-) AS p USING(author)
-LEFT JOIN (
-    SELECT author, COUNT(*) AS num_comments, SUM(num_replies) AS comment_engagement
-    FROM comments
-    WHERE author <> '[deleted]'
-    GROUP BY author
-) AS c USING(author)
-WHERE COALESCE(post_engagement, 0) + COALESCE(comment_engagement, 0) > ?
+    SELECT author, COUNT(*) AS engagement
+    FROM(
+        SELECT p.author
+        FROM posts AS p
+        WHERE p.author <> '[deleted]'
+            UNION ALL
+        SELECT c.author
+        FROM comments AS c
+        WHERE c.author <> '[deleted]'
+    ) GROUP BY author
+    HAVING engagement >= ?
 ''', (10,))
 
 distinct_users = cursor.fetchall()
