@@ -1,4 +1,4 @@
-Id,engagement,indegree,outdegree,Degree,Eccentricity,Authority
+id,engagement,indegree,outdegree,degree,eccentricity,authority
 12bEngie,38,7,72,79,11,0.003412
 10thAmdAbsolutist,391,69,83,152,11,0.008592
 AberforthSpeck,11,4,0,4,0,0.001848
