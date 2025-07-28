@@ -1,6 +1,7 @@
 import sqlite3
 import csv
 import pandas as pd
+from collections import Counter
 
 connection = sqlite3.connect('reddit-posts.db')
 cursor = connection.cursor()
@@ -69,15 +70,39 @@ filtered_edges_cc = [
 
 print(f"Total filtered edges identified: {len(filtered_edges_ac) + len(filtered_edges_cc)}")
 
+# Removing users with Dregree < 2: that means users that have no interactions or that iteracted only with themselves (i.e. comment their own posts)
+degree_counter = Counter()
+
+for src, dst, weight in filtered_edges_ac + filtered_edges_cc:
+    degree_counter[src] += 1
+    degree_counter[dst] += 1
+
+final_users = {user for user, deg in degree_counter.items() if deg >= 2}
+final_nodes = [row for row in distinct_users if row[0] in final_users]
+print(f"Total filtered users identified: {len(final_nodes)}")
+
+# Final edges filtering
+final_edges_ac = [
+    (src, dst, weight) for src, dst, weight in filtered_edges_ac
+    if src in final_users and dst in final_users
+]
+
+final_edges_cc = [
+    (src, dst, weight) for src, dst, weight in filtered_edges_cc
+    if src in final_users and dst in final_users
+]
+
+print(f"Total final edges identified: {len(final_edges_ac) + len(final_edges_cc)}")
+
 # Creating nodes csv file
 with open('src/data/nodes.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
     writer.writerow(['id', 'engagement'])
-    writer.writerows(distinct_users)
+    writer.writerows(final_nodes)
 
 # Creating edges csv file
 with open('src/data/edges.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
     writer.writerow(['source', 'target', 'weight'])
-    writer.writerows(filtered_edges_ac)
-    writer.writerows(filtered_edges_cc)
+    writer.writerows(final_edges_ac)
+    writer.writerows(final_edges_cc)
