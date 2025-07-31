@@ -5,3 +5,5 @@ reddit-posts.db
 .github
 src/data/nodes.csv
 src/data/edges.csv
+src/graph_dir/subgraph_dir
+src/clustering
