@@ -3,6 +3,7 @@ import torch
 from sklearn.preprocessing import MinMaxScaler
 from torch_geometric.data import Data
 import logging
+from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,11 +35,29 @@ edges['weight'] = edge_scaler.fit_transform(edges[['weight']])
 
 # Creazione edge_index e edge_weight
 edges_index = torch.tensor([
-    [user2idx[src] for src in edges['source']],
+    [user2idx[src] for src in edges['source']],\
     [user2idx[dst] for dst in edges['target']],
 ], dtype=torch.long)
 
 edges_weight = torch.tensor(edges['weight'].values, dtype=torch.float)
+
+# Define iterable edges structure
+src_list = edges_index[0].tolist()
+trg_list = edges_index[1].tolist()
+w_list = edges_weight.tolist()
+
+# Aggregates symmetric edges
+edge_dict = defaultdict(int)
+for u,v, w in zip(src_list, trg_list, w_list):
+    key = tuple(sorted((u,v))) # In non-directed -> (min(u,v), max(u,v))
+    edge_dict[key] += w
+
+# Building nre edge_index and edge_weight
+new_edges = list(edge_dict.keys())
+new_weights = list(edge_dict.values())
+
+edges_index = torch.tensor(new_edges, dtype=torch.long).t()
+edges_weight = torch.tensor(new_weights, dtype=torch.int)
 
 # Creazione del grafo
 data = Data(x=nodes_features, edge_index=edges_index, edge_weight=edges_weight)
