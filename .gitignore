@@ -6,4 +6,7 @@ reddit-posts.db
 src/data/nodes.csv
 src/data/edges.csv
 src/graph_dir/subgraph_dir
-src/clustering
+src/clustering/clustering.csv
+src/clustering/DBSCAN_clustering.ipynb
+src/clustering/Spectral_clustering.ipynb
+src/clustering/visualize_clusters.ipynb
