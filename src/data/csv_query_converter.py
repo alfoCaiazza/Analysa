@@ -77,7 +77,8 @@ for src, dst, weight in filtered_edges_ac + filtered_edges_cc:
     degree_counter[src] += 1
     degree_counter[dst] += 1
 
-final_users = {user for user, deg in degree_counter.items() if deg >= 2}
+min_interactions = 5
+final_users = {user for user, deg in degree_counter.items() if deg >= min_interactions}
 final_nodes = [row for row in distinct_users if row[0] in final_users]
 print(f"Total filtered users identified: {len(final_nodes)}")
 
