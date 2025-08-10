@@ -6,5 +6,7 @@ reddit-posts.db
 src/data/nodes.csv
 src/data/edges.csv
 src/graph_dir/subgraph_dir
+src/graph_dir/infomap_dir
 src/node_embds/
-src/nlp/dataset.csv
+src/nlp/raw_textual_df.csv
+src/nlp/cleaned_dataset.csv
