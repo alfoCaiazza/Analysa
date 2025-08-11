@@ -10,4 +10,6 @@ src/graph_dir/infomap_dir
 src/node_embds/
 src/nlp/raw_textual_df.csv
 src/nlp/cleaned_dataset.csv
-src/nlp/sentiment_scores.csv
+src/nlp/sentiment/sentiment_scores.csv
+
+
