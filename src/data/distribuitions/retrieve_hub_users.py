@@ -67,15 +67,17 @@ df_final["is_hub"] = (
 )
 
 df_final['is_bridge'] = (
-    ~df_final['is_hub']) & (df_final['pct_external'] > 0.5 # a bridge user can't be a hub
-) 
+    ~df_final['is_hub'] & # A bridge user cannot be also a hub
+    (df_final['pct_external'] > 0.5) &
+    (df_final['community_type'].isin(['Strong community', 'Weak community'])) 
+)
 
 print(f"Total users in strong communities: {total_strong_comm_users}."
       f"\nTotal users in weak communities:{total_weak_comm_user}"
       f"\nTotal users in noisy communities: {total_noisy_users}")
 
-print(f"\nTotal Hub users identified: {len(df_final.loc[df_final['is_hub'] == True])}")
-print(f"Total Bridge users:{len(df_final.loc[df_final['is_bridge'] == True])}")
+print(f"\nTotal Hub users identified: {len(df_final.loc[df_final['is_hub']])}")
+print(f"Total Bridge users:{len(df_final.loc[df_final['is_bridge']])}")
 
 print(f"\nTotal hub users in strong community: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == 'Strong community')])}")
 print(f"Total bridge users in strong community: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == 'Strong community')])}")

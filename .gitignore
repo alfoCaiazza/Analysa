@@ -11,5 +11,5 @@ src/node_embds/
 src/nlp/raw_textual_df.csv
 src/nlp/cleaned_dataset.csv
 src/nlp/sentiment/sentiment_scores.csv
-
-
+src/nlp/topic_modeling/global_embeddings.csv
+src/data/distribuitions/hub_bridge_df.csv
