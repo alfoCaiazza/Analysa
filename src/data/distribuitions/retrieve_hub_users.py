@@ -54,23 +54,40 @@ df_final = df_final.join(community_type_map, on='id')
 df_final["internal_degree"] = df_final["internal_degree"].fillna(0)
 df_final["external_degree"] = df_final["degree"] - df_final["internal_degree"]
 
-hub_users = df_final[
-    (df_final['community_id'].notna()) &
-    (df_final['internal_degree'] > df_final['external_degree'])
-]
+# Calculating degrees percentage
+df_final["pct_internal"] = df_final["internal_degree"] / df_final["degree"]
+df_final["pct_external"] = df_final["external_degree"] / df_final["degree"]
 
-hub_users['bridge_value'] = hub_users['external_degree'].div(hub_users['degree'])
+# Calculating internal community threshold
+internal_thresholds = df_final.groupby("community_id")["internal_degree"].quantile(0.9)  # top 10%
+
+df_final["is_hub"] = (
+    df_final.apply(lambda row: row["internal_degree"] >= internal_thresholds.get(row["community_id"], np.inf), axis=1)
+    & (df_final["pct_external"] < 0.2)
+)
+
+df_final['is_bridge'] = (
+    ~df_final['is_hub']) & (df_final['pct_external'] > 0.5 # a bridge user can't be a hub
+) 
+
+
+# hub_users = df_final[
+#     (df_final['community_id'].notna()) &
+#     (df_final['internal_degree'] > df_final['external_degree'])
+# ]
+
+# hub_users['bridge_value'] = hub_users['external_degree'].div(hub_users['degree'])
 
 print(f"Total users in strong communities: {total_strong_comm_users}."
       f"\nTotal users in weak communities:{total_weak_comm_user}"
       f"\nTotal users in noisy communities: {total_noisy_users}")
-print(f"Total hub users identified: {len(hub_users)}")
-print(f"Hub users:\n{hub_users[['id', 'community_id', 'community_type', 'bridge_value']]}")
-print(f"Max bridge value: {hub_users['bridge_value'].max()}")
-print(f"total Hub-Bridge users:{len(hub_users.loc[hub_users['bridge_value'] > 0.3])}")
-print(f"Hub-Bridge users:\n{hub_users.loc[hub_users['bridge_value'] > 0.3, ['id', 'community_id', 'community_type', 'bridge_value']]}")
 
-print(f"\nTotal hub users in strong community: {len(hub_users.loc[hub_users['community_type'] == 'Strong community'])}")
-print(f"\nTotal bridge users in strong community: {len(hub_users.loc[(hub_users['bridge_value'] > 0.3) & (hub_users['community_type'] == 'Strong community')])}")
-print(f"\nTotal hub users in weak community: {len(hub_users.loc[hub_users['community_type'] == 'Weak community'])}")
-print(f"\nTotal bridge users in weak community: {len(hub_users.loc[(hub_users['bridge_value'] > 0.3) & (hub_users['community_type'] == 'Weak community')])}")
+print(f"\nTotal Hub users identified: {len(df_final.loc[df_final['is_hub'] == True])}")
+print(f"Total Bridge users:{len(df_final.loc[df_final['is_bridge'] == True])}")
+
+print(f"\nTotal hub users in strong community: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == 'Strong community')])}")
+print(f"Total bridge users in strong community: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == 'Strong community')])}")
+print(f"Total hub users in weak community: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == 'Weak community')])}")
+print(f"Total bridge users in weak community: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == 'Weak community')])}")
+
+df_final.to_csv('hub_bridge_df.csv', sep=',', encoding='utf-8', index=False)
