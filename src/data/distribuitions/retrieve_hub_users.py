@@ -34,6 +34,17 @@ for comm_id, comm_data in tree.items():
 community_map = pd.Series(node2comm, name="community_id")
 community_type_map = pd.Series(node2comm_type, name="community_type")
 
+node2comm_full = {}
+node2comm_type_full = {}
+
+for comm_id, comm_data in tree.items():
+    ctype = comm_data.get('type', 'Noisy community')
+    for u in comm_data.get('users', []):
+        node2comm_full[u] = comm_id
+        node2comm_type_full[u] = ctype
+
+community_map_full = pd.Series(node2comm_full, name="community_id")
+community_type_map_full = pd.Series(node2comm_type_full, name="community_type")
 
 # Labeling each edge node with its community and then filtering edges of the same community 
 edges['src_comm'] = edges['source'].map(community_map)
@@ -49,7 +60,7 @@ df_deg = internal_deg.to_frame().join(community_map)
 
 # Computing external degree: degree - internal degree
 df_final = nodes.merge(df_deg, left_on='id', right_index=True, how='left')
-df_final = df_final.join(community_type_map, on='id')
+df_final = df_final.join(community_type_map_full, on='id')
 
 df_final["internal_degree"] = df_final["internal_degree"].fillna(0).astype(int)
 df_final["external_degree"] = df_final["degree"] - df_final["internal_degree"].astype(int)
