@@ -13,3 +13,8 @@ src/nlp/cleaned_dataset.csv
 src/nlp/sentiment/sentiment_scores.csv
 src/nlp/topic_modeling/global_embeddings.csv
 src/data/distribuitions/hub_bridge_df.csv
+src/nlp/topic_modeling/global_metadata.csv
+src/nlp/topic_modeling/global_embeddings.npy
+src/nlp/topic_modeling/user_embeddings.npy
+src/data/distribuitions/hub_bridge_df.csv
+src/data/distribuitions/role_embeddings.npy
