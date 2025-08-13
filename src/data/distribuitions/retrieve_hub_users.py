@@ -70,17 +70,27 @@ df_final["pct_internal"] = df_final["internal_degree"] / df_final["degree"]
 df_final["pct_external"] = df_final["external_degree"] / df_final["degree"]
 
 # Calculating internal community threshold
-internal_thresholds = df_final.groupby("community_id")["internal_degree"].quantile(0.9)  # top 10%
-
+internal_degree_threshold = df_final.groupby("community_id")["internal_degree"].transform(
+    lambda x: max(x.quantile(0.9), 5) 
+)
 df_final["is_hub"] = (
-    df_final.apply(lambda row: row["internal_degree"] >= internal_thresholds.get(row["community_id"], np.inf), axis=1)
-    & (df_final["pct_external"] < 0.2)
+    (df_final["internal_degree"] >= internal_degree_threshold) &
+    (df_final["pct_external"] < 0.2) &
+    (df_final["indegree"] > df_final["indegree"].median()) & # Makes and Recieves a lot of connection compared to mean users
+    (df_final["outdegree"] > df_final["outdegree"].median())
 )
 
+# Defining adaptive threshold to defining bridge users
+pct_external_threshold = df_final['pct_external'].quantile(0.75)  # 75° percentile
+external_degree_threshold = df_final['external_degree'].quantile(0.5)  # Median
+
 df_final['is_bridge'] = (
-    ~df_final['is_hub'] & # A bridge user cannot be also a hub
-    (df_final['pct_external'] > 0.5) &
-    (df_final['community_type'].isin(['Strong community', 'Weak community'])) 
+    ~df_final['is_hub'] &
+    (df_final['pct_external'] > pct_external_threshold) &
+    (df_final['external_degree'] > external_degree_threshold) &
+    (df_final['indegree'] > 0) & # Recieves and makes connections
+    (df_final['outdegree'] > 0) &
+    (df_final['community_type'].isin(['Strong community', 'Weak community']))
 )
 
 print(f"Total users in strong communities: {total_strong_comm_users}."
