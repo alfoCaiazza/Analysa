@@ -26,10 +26,9 @@ for comm_id, comm_data in tree.items():
     else:
         total_noisy_users += len(comm_data.get('users', []))
 
-    if ctype in ['Weak community', 'Strong community']:
-        for u in comm_data.get('users', []):
-            node2comm[u] = comm_id
-            node2comm_type[u] = ctype
+    for u in comm_data.get('users', []):
+        node2comm[u] = comm_id
+        node2comm_type[u] = ctype
 
 community_map = pd.Series(node2comm, name="community_id")
 community_type_map = pd.Series(node2comm_type, name="community_type")
@@ -73,11 +72,13 @@ df_final["pct_external"] = df_final["external_degree"] / df_final["degree"]
 internal_degree_threshold = df_final.groupby("community_id")["internal_degree"].transform(
     lambda x: max(x.quantile(0.9), 5) 
 )
+
 df_final["is_hub"] = (
     (df_final["internal_degree"] >= internal_degree_threshold) &
     (df_final["pct_external"] < 0.2) &
     (df_final["indegree"] > df_final["indegree"].median()) & # Makes and Recieves a lot of connection compared to mean users
-    (df_final["outdegree"] > df_final["outdegree"].median())
+    (df_final["outdegree"] > df_final["outdegree"].median()) &
+    (df_final['community_type'].isin(['Strong community', 'Weak community']))
 )
 
 # Defining adaptive threshold to defining bridge users
