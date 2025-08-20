@@ -121,11 +121,11 @@ def reddit_scraping(subreddit, conn=None, max_posts_per_session=1000, batch_size
         # Final commit
         if ops_since_commit > 0:
             conn.commit()
-            logging.info(f"💾 Final commit di {ops_since_commit} operazioni")
+            logging.info(f"Final commit di {ops_since_commit} ops")
         
         # If new posts have been found then updated the state param
         if current_session_newest is not None and current_session_newest > last_known_timestamp:
-            logging.info(f"🔄 Aggiornamento newest_processed_utc per r/{subreddit_name} a {datetime.fromtimestamp(current_session_newest)}")
+            logging.info(f"UPDATING newest_processed_utc for r/{subreddit_name} a {datetime.fromtimestamp(current_session_newest)}")
             set_last_timestamp(conn, subreddit_name, current_session_newest)
         
         logging.info(f"SCRAPE ENDED for r/{subreddit_name}. Processed: {posts_processed} post, {total_comments_processed} comments")
@@ -136,7 +136,7 @@ def process_submission(submission, conn, posts_processed, ops_since_commit, batc
     
     # Skip post with empty body - images or other objs
     if not submission.selftext or submission.selftext.strip() == '':
-        logging.debug(f"⏭️  Skipping post {submission.id} - empty body")
+        logging.debug(f"⏭Skipping post {submission.id} - empty body")
         return posts_processed, ops_since_commit, comments_processed
     
     post_data = {
@@ -147,20 +147,18 @@ def process_submission(submission, conn, posts_processed, ops_since_commit, batc
         'date': datetime.fromtimestamp(submission.created_utc, timezone.utc).isoformat(),
         'text': submission.selftext,
         'num_comments': submission.num_comments,
-        'over_18': int(submission.over_18),
         'score': submission.score,
-        'upvote_ratio': getattr(submission, 'upvote_ratio', None),
-        'url': submission.url
+        'upvote_ratio': getattr(submission, 'upvote_ratio', None)
     }
     
     try:
         c.execute('''INSERT OR IGNORE INTO posts
-                  (id, subreddit, author, title, date, text, num_comments, over_18, score, upvote_ratio, url) 
+                  (id, subreddit, author, title, date, text, num_comments, score, upvote_ratio) 
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (post_data['id'], post_data['subreddit_name'], post_data['author'], 
              post_data['title'], post_data['date'], post_data['text'], 
              post_data['num_comments'], post_data['over_18'], post_data['score'],
-             post_data['upvote_ratio'], post_data['url']))
+             post_data['upvote_ratio']))
         ops_since_commit += 1
     except Exception as e:
         logging.error(f"ERROR during post loading {submission.id}: {e}")
@@ -229,7 +227,7 @@ def process_comments(submission, conn, initial_ops_count):
             break
             
         except (RequestException, ResponseException, ServerError, PrawcoreException) as e:
-            retry_delay = 30 * (4 - retries)  # Backoff esponenziale: 30, 60, 90 secondi
+            retry_delay = 30 * (4 - retries)  # Exponential Backoff: 30, 60, 90 sec
             logging.warning(f"SERVER ERROR ({e}). Retry in {retry_delay}s... (Tries {4-retries}/3)")
             time.sleep(retry_delay)
             retries -= 1
