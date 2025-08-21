@@ -45,11 +45,17 @@ print(f"Example of edge a-to-c : {edges_type_ac[0]}")
 
 # Retrieving edges type commenter-commenter where the commenter has more than x interactions with the parent commenter
 cursor.execute('''
-    SELECT child.author AS src, parent.author AS dst, COUNT(*) as weight
-    FROM comments AS parent
-    JOIN comments AS child ON parent.comment_id = child.parent_id 
-    GROUP BY child.author, parent.author
-    HAVING (child.author <> '[deleted]' AND parent.author <> '[deleted]') AND (child.author <> parent.author)
+    SELECT 
+        c1.author AS src, 
+        c2.author AS dst, 
+        COUNT(*) as weight
+    FROM comments c1
+    JOIN comments c2 ON SUBSTR(c1.parent_id, 4) = c2.comment_id
+    WHERE c1.author <> '[deleted]' 
+        AND c2.author <> '[deleted]'
+        AND c1.author <> c2.author
+        AND c1.parent_id LIKE 't1_%'
+    GROUP BY c1.author, c2.author
 ''')
 
 edges_type_cc = cursor.fetchall()

@@ -18,3 +18,5 @@ src/nlp/topic_modeling/community_embeddings.npy
 src/nlp/topic_modeling/text_embeddings.npy
 src/data/distribuitions/hub_bridge_df.csv
 src/nlp/topic_modeling/user_embeddings.npy
+
+src/research_question/rq1.ipynb

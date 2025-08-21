@@ -29,8 +29,8 @@ def create_tables(conn):
         date TEXT,
         text TEXT,
         num_comments INTEGER,
-        over_18 INTEGER,
-        score INTEGER
+        score INTEGER,
+        upvote_ratio REAL
     )      
     ''')
 
@@ -63,7 +63,12 @@ def get_last_timestamp(conn, subreddit_name):
     c.execute('SELECT newest_processed_utc FROM scraping_state WHERE subreddit = ?', (subreddit_name,))
     row = c.fetchone()
 
-    return row[0] if row else time.time()
+    if row:
+        logging.info(f"Found existing timestamp for r/{subreddit_name}: {datetime.fromtimestamp(row[0])}")
+        return row[0]
+    else:
+        logging.info(f"No existing timestamp for r/{subreddit_name}. Starting from beginning.")
+        return 0  # Starting from beginning if first-time scraping
 
 def set_last_timestamp(conn, subreddit_name, timestamp_utc):
     c = conn.cursor()
@@ -97,7 +102,7 @@ def reddit_scraping(subreddit, conn=None, max_posts_per_session=1000, batch_size
             if current_session_newest is None or post_created_utc > current_session_newest:
                 current_session_newest = post_created_utc
 
-            if post_created_utc <= last_known_timestamp:
+            if post_created_utc < last_known_timestamp:
                 logging.info(f"Reached already-processed posts ({(datetime.fromtimestamp(post_created_utc))}). Exiting.")
                 break
             
@@ -133,10 +138,12 @@ def reddit_scraping(subreddit, conn=None, max_posts_per_session=1000, batch_size
 def process_submission(submission, conn, posts_processed, ops_since_commit, batch_size):
     c = conn.cursor()
     comments_processed = 0
+
+    logging.info(f"Processing post {submission.id}")
     
     # Skip post with empty body - images or other objs
     if not submission.selftext or submission.selftext.strip() == '':
-        logging.debug(f"⏭Skipping post {submission.id} - empty body")
+        logging.debug(f"Skipping post {submission.id} - empty body")
         return posts_processed, ops_since_commit, comments_processed
     
     post_data = {
@@ -148,17 +155,16 @@ def process_submission(submission, conn, posts_processed, ops_since_commit, batc
         'text': submission.selftext,
         'num_comments': submission.num_comments,
         'score': submission.score,
-        'upvote_ratio': getattr(submission, 'upvote_ratio', None)
+        'upvote_ratio': submission.upvote_ratio
     }
     
     try:
         c.execute('''INSERT OR IGNORE INTO posts
                   (id, subreddit, author, title, date, text, num_comments, score, upvote_ratio) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (post_data['id'], post_data['subreddit_name'], post_data['author'], 
              post_data['title'], post_data['date'], post_data['text'], 
-             post_data['num_comments'], post_data['over_18'], post_data['score'],
-             post_data['upvote_ratio']))
+             post_data['num_comments'], post_data['score'],post_data['upvote_ratio']))
         ops_since_commit += 1
     except Exception as e:
         logging.error(f"ERROR during post loading {submission.id}: {e}")
@@ -204,19 +210,16 @@ def process_comments(submission, conn, initial_ops_count):
                     'parent_id': comment.parent_id,
                     'depth': getattr(comment, 'depth', 0),
                     'num_replies': len(comment.replies) if hasattr(comment, 'replies') else 0,
-                    'score': getattr(comment, 'score', 0),
-                    'is_submitter': getattr(comment, 'is_submitter', False)
+                    'score': getattr(comment, 'score', 0)
                 }
 
                 try:
                     c.execute('''INSERT OR IGNORE INTO comments 
-                              (post_id, comment_id, text, author, date, parent_id, depth, num_replies, score, is_submitter)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                            (comment_data['post_id'], comment_data['comment_id'], 
-                             comment_data['text'], comment_data['author'], 
-                             comment_data['date'], comment_data['parent_id'],
-                             comment_data['depth'], comment_data['num_replies'],
-                             comment_data['score'], comment_data['is_submitter']))
+                              (post_id, comment_id, text, author, date, parent_id, depth, num_replies, score)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                            (comment_data['post_id'], comment_data['comment_id'], comment_data['text'],
+                            comment_data['author'], comment_data['date'], comment_data['parent_id'],
+                            comment_data['depth'], comment_data['num_replies'], comment_data['score']))
                     ops_count += 1
                     comments_processed += 1
                     
