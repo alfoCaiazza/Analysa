@@ -35,7 +35,7 @@ cursor.execute('''
     FROM posts AS p
     JOIN comments AS c ON p.id = c.post_id
     GROUP BY p.author, c.author
-    HAVING (p.author <> '[deleted]' AND c.author <> '[deleted]') AND (p.author <> c.author)
+    HAVING (p.author <> '[deleted]' AND c.author <> '[deleted]') AND (p.author <> c.author) AND (p.text <> '[removed]' AND c.text <> '[removed]')
 ''')
 
 edges_type_ac = cursor.fetchall()
@@ -53,6 +53,8 @@ cursor.execute('''
     JOIN comments c2 ON SUBSTR(c1.parent_id, 4) = c2.comment_id
     WHERE c1.author <> '[deleted]' 
         AND c2.author <> '[deleted]'
+        AND c1.text <> '[removed]'
+        AND c2.text <> '[removed]'
         AND c1.author <> c2.author
         AND c1.parent_id LIKE 't1_%'
     GROUP BY c1.author, c2.author
