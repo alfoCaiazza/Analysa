@@ -243,7 +243,7 @@ def main():
     setup_logging()
     load_dotenv()
 
-    targeted_subreddits = ["PoliticalDiscussion", "AmItheAsshole", "offmychest", "changemyview", "TrueAskReddit"] 
+    targeted_subreddits = ["PoliticalDiscussion", "AmItheAsshole", "offmychest", "changemyview", "TrueAskReddit", "unpopularopinion", "confession"] 
 
     reddit = praw.Reddit(
         client_id = os.getenv('REDDIT_CLIENT_ID'),
