@@ -13,11 +13,11 @@ cursor.execute('''
     FROM(
         SELECT p.author
         FROM posts AS p
-        WHERE p.author <> '[deleted]'
+        WHERE p.author <> '[deleted]' AND p.num_comments <> 0
             UNION ALL
         SELECT c.author
         FROM comments AS c
-        WHERE c.author <> '[deleted]'
+        WHERE c.author <> '[deleted]' AND c.num_replies <> 0
     ) GROUP BY author
     HAVING engagement >= ?
 ''', (10,))
