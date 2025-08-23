@@ -62,7 +62,7 @@ df_final = nodes.merge(df_deg, left_on='id', right_index=True, how='left')
 df_final = df_final.join(community_type_map_full, on='id')
 
 df_final["internal_degree"] = df_final["internal_degree"].fillna(0).astype(int)
-df_final["external_degree"] = df_final["degree"] - df_final["internal_degree"].astype(int)
+df_final["external_degree"] = (df_final["degree"] - df_final["internal_degree"].astype(int)).abs()
 
 # Calculating degrees percentage
 df_final["pct_internal"] = df_final["internal_degree"] / df_final["degree"]
@@ -106,5 +106,5 @@ print(f"Total bridge users in strong community: {len(df_final.loc[(df_final['is_
 print(f"Total hub users in weak community: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == 'Weak community')])}")
 print(f"Total bridge users in weak community: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == 'Weak community')])}")
 
-df_final = df_final.drop(columns=['engagement', 'weighted_indegree','weighted_outdegree','weighted_degree','eccentricity','closness_centrality','harmonic_closnesscentrality','betweeness_centrality','authority','hub','pageranks','component_number','strong_comp_num','modularity_class','stat_inf_class','clustering','eigencentrality'], axis=1)
+df_final = df_final.drop(columns=['engagement','weighted_indegree','weighted_outdegree','weighted_degree','eccentricity','closnesscentrality','harmonicclosnesscentrality','betweenesscentrality','pageranks','authority'], axis=1)
 df_final.to_csv('src/data/distribuitions/hub_bridge_df.csv', sep=',', encoding='utf-8', index=False)
