@@ -12,19 +12,25 @@ with open('src/graph_dir/infomap_dir/cluster_tree_base.json', 'r') as f:
 
 node2comm = {}
 node2comm_type = {}
-total_strong_comm_users = 0
-total_weak_comm_user = 0
-total_noisy_users = 0
+
+total_very_strong_users = 0
+total_strong_users = 0
+total_moderate_users = 0
+total_weak_users = 0
 
 # Extracting weak communities
 for comm_id, comm_data in tree.items():
     ctype = comm_data.get('type')
-    if ctype == 'Strong community':
-        total_strong_comm_users += len(comm_data.get('users', []))
+    num_users = len(comm_data.get('users', []))
+    
+    if ctype == 'Very Strong community':
+        total_very_strong_users += num_users
+    elif ctype == 'Strong community':
+        total_strong_users += num_users
+    elif ctype == 'Moderate community':
+        total_moderate_users += num_users
     elif ctype == 'Weak community':
-        total_weak_comm_user += len(comm_data.get('users', []))
-    else:
-        total_noisy_users += len(comm_data.get('users', []))
+        total_weak_users += num_users
 
     for u in comm_data.get('users', []):
         node2comm[u] = comm_id
@@ -33,17 +39,7 @@ for comm_id, comm_data in tree.items():
 community_map = pd.Series(node2comm, name="community_id")
 community_type_map = pd.Series(node2comm_type, name="community_type")
 
-node2comm_full = {}
-node2comm_type_full = {}
-
-for comm_id, comm_data in tree.items():
-    ctype = comm_data.get('type', 'Noisy community')
-    for u in comm_data.get('users', []):
-        node2comm_full[u] = comm_id
-        node2comm_type_full[u] = ctype
-
-community_map_full = pd.Series(node2comm_full, name="community_id")
-community_type_map_full = pd.Series(node2comm_type_full, name="community_type")
+valid_comm_types = ['Very Strong community', 'Strong community', 'Moderate community', 'Weak community']
 
 # Labeling each edge node with its community and then filtering edges of the same community 
 edges['src_comm'] = edges['source'].map(community_map)
@@ -59,7 +55,7 @@ df_deg = internal_deg.to_frame().join(community_map)
 
 # Computing external degree: degree - internal degree
 df_final = nodes.merge(df_deg, left_on='id', right_index=True, how='left')
-df_final = df_final.join(community_type_map_full, on='id')
+df_final = df_final.join(community_type_map, on='id')
 
 df_final["internal_degree"] = df_final["internal_degree"].fillna(0).astype(int)
 df_final["external_degree"] = (df_final["degree"] - df_final["internal_degree"].astype(int)).abs()
@@ -76,9 +72,7 @@ internal_degree_threshold = df_final.groupby("community_id")["internal_degree"].
 df_final["is_hub"] = (
     (df_final["internal_degree"] >= internal_degree_threshold) &
     (df_final["pct_external"] < 0.2) &
-    (df_final["indegree"] > df_final["indegree"].median()) & # Makes and Recieves a lot of connection compared to mean users
-    (df_final["outdegree"] > df_final["outdegree"].median()) &
-    (df_final['community_type'].isin(['Strong community', 'Weak community']))
+    (df_final['community_type'].isin(valid_comm_types))
 )
 
 # Defining adaptive threshold to defining bridge users
@@ -89,22 +83,20 @@ df_final['is_bridge'] = (
     ~df_final['is_hub'] &
     (df_final['pct_external'] > pct_external_threshold) &
     (df_final['external_degree'] > external_degree_threshold) &
-    (df_final['indegree'] > 0) & # Recieves and makes connections
-    (df_final['outdegree'] > 0) &
-    (df_final['community_type'].isin(['Strong community', 'Weak community']))
+    (df_final['community_type'].isin(valid_comm_types))
 )
 
-print(f"Total users in strong communities: {total_strong_comm_users}."
-      f"\nTotal users in weak communities:{total_weak_comm_user}"
-      f"\nTotal users in noisy communities: {total_noisy_users}")
+print(f"Total users in very strong communities: {total_very_strong_users}")
+print(f"Total users in strong communities: {total_strong_users}")
+print(f"Total users in moderate communities: {total_moderate_users}")
+print(f"Total users in weak communities: {total_weak_users}")
 
 print(f"\nTotal Hub users identified: {len(df_final.loc[df_final['is_hub']])}")
 print(f"Total Bridge users:{len(df_final.loc[df_final['is_bridge']])}")
 
-print(f"\nTotal hub users in strong community: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == 'Strong community')])}")
-print(f"Total bridge users in strong community: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == 'Strong community')])}")
-print(f"Total hub users in weak community: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == 'Weak community')])}")
-print(f"Total bridge users in weak community: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == 'Weak community')])}")
+for ctype in valid_comm_types:
+    print(f"Total hub users in {ctype}: {len(df_final.loc[(df_final['is_hub']) & (df_final['community_type'] == ctype)])}")
+    print(f"Total bridge users in {ctype}: {len(df_final.loc[(df_final['is_bridge']) & (df_final['community_type'] == ctype)])}")
 
-df_final = df_final.drop(columns=['engagement','weighted_indegree','weighted_outdegree','weighted_degree','eccentricity','closnesscentrality','harmonicclosnesscentrality','betweenesscentrality','pageranks','authority'], axis=1)
+df_final = df_final.drop(columns=['engagement','weighted_degree','eccentricity','closeness_centrality','harmonic_closeness_centrality','betweenness_centrality','authority','hub','pagerank'], axis=1)
 df_final.to_csv('src/data/distribuitions/hub_bridge_df.csv', sep=',', encoding='utf-8', index=False)
