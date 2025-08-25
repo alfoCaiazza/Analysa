@@ -1,49 +1,52 @@
 import sqlite3
 import csv
-import pandas as pd
-from collections import Counter
+from collections import Counter, defaultdict
+import math
+import numpy as np
 
+# Database connection
 connection = sqlite3.connect('reddit-posts.db')
 cursor = connection.cursor()
 
-# Retrieving all the nodes (aka reddit users) with an engagement score greater than x
-# The engagement score is the sum of an author occurrences in bot posts and comments table
+# User retrieval and engagement computation
 cursor.execute('''
     SELECT author, COUNT(*) AS engagement
     FROM(
         SELECT p.author
         FROM posts AS p
         WHERE p.author <> '[deleted]' AND p.num_comments <> 0
-            UNION ALL
+        UNION ALL
         SELECT c.author
         FROM comments AS c
         WHERE c.author <> '[deleted]' AND c.num_replies <> 0
     ) GROUP BY author
-    HAVING engagement >= ?
-''', (10,))
+''')
 
 distinct_users = cursor.fetchall()
+all_users = {user: count for user, count in distinct_users}
 
-print(f"Total distinct users : {len(distinct_users)}")
-print(f"Example of user : {distinct_users[0]}")
+# Computing engagement value distribuition
+engagement_values = np.array(list(all_users.values()))
 
-valid_users = set(user[0] for user in distinct_users)
+# Cutoff
+engagement_cutoff = np.quantile(engagement_values, 0.8)  # keepin 20% most active users
+print(f"Engagement threshold: {engagement_cutoff}")
+valid_users = {user for user, count in all_users.items() if count >= engagement_cutoff}
+print(f"Users after engagement filter: {len(valid_users)}")
 
-# Retrieving edges type author-commenter where the author has more than x interactions with the commenter
+# Edges post→comment
 cursor.execute('''
     SELECT p.author AS src, c.author as dst, COUNT(*) as weight
     FROM posts AS p
     JOIN comments AS c ON p.id = c.post_id
     GROUP BY p.author, c.author
-    HAVING (p.author <> '[deleted]' AND c.author <> '[deleted]') AND (p.author <> c.author) AND (p.text <> '[removed]' AND c.text <> '[removed]')
+    HAVING (p.author <> '[deleted]' AND c.author <> '[deleted]')
+       AND (p.author <> c.author)
+       AND (p.text <> '[removed]' AND c.text <> '[removed]')
 ''')
-
 edges_type_ac = cursor.fetchall()
 
-print(f"Total edges a-to-c identified: {len(edges_type_ac)}")
-print(f"Example of edge a-to-c : {edges_type_ac[0]}")
-
-# Retrieving edges type commenter-commenter where the commenter has more than x interactions with the parent commenter
+# Edges comment→comment
 cursor.execute('''
     SELECT 
         c1.author AS src, 
@@ -59,59 +62,54 @@ cursor.execute('''
         AND c1.parent_id LIKE 't1_%'
     GROUP BY c1.author, c2.author
 ''')
-
 edges_type_cc = cursor.fetchall()
 
-print(f"Total edges c-to-c identified: {len(edges_type_cc)}")
-print(f"Example of edge c-to-c : {edges_type_cc[0]}")
-
-print(f"Total edges identified: {len(edges_type_ac) + len(edges_type_cc)}")
-
-# Filtering edges to only include valid users
-filtered_edges_ac =[
-    (src, dst, weight) for src, dst, weight in edges_type_ac if src in valid_users and dst in valid_users
+# Filtering valid users
+filtered_edges = [
+    (src, dst, weight) for src, dst, weight in edges_type_ac + edges_type_cc
+    if src in valid_users and dst in valid_users
 ]
 
-filtered_edges_cc = [
-    (src, dst, weight) for src, dst, weight in edges_type_cc if src in valid_users and dst in valid_users
-]
+print(f"Edges after user filter: {len(filtered_edges)}")
 
-print(f"Total filtered edges identified: {len(filtered_edges_ac) + len(filtered_edges_cc)}")
+# Making edges undirectioned
+edge_dict = defaultdict(int)
+for src, dst, w in filtered_edges:
+    u, v = sorted([src, dst]) 
+    edge_dict[(u, v)] += w
 
-# Removing users with Dregree < 2: that means users that have no interactions or that iteracted only with themselves (i.e. comment their own posts)
+# Normalizzazione log(1+w)
+final_edges = [(u, v, math.log1p(w)) for (u, v), w in edge_dict.items()]
+print(f"Unique undirected edges: {len(final_edges)}")
+
+# Computing degree value distribuition
 degree_counter = Counter()
+for u, v, w in final_edges:
+    degree_counter[u] += 1
+    degree_counter[v] += 1
 
-for src, dst, weight in filtered_edges_ac + filtered_edges_cc:
-    degree_counter[src] += 1
-    degree_counter[dst] += 1
+degree_values = np.array([deg for user, deg in degree_counter.items()])
 
-min_interactions = 5
-final_users = {user for user, deg in degree_counter.items() if deg >= min_interactions}
-final_nodes = [row for row in distinct_users if row[0] in final_users]
-print(f"Total filtered users identified: {len(final_nodes)}")
+# Cutoff
+degree_cutoff = np.quantile(degree_values, 0.5)
+print(f"Degree threshold: {degree_cutoff}")
+final_users = {user for user in valid_users if degree_counter[user] >= degree_cutoff}
 
-# Final edges filtering
-final_edges_ac = [
-    (src, dst, weight) for src, dst, weight in filtered_edges_ac
-    if src in final_users and dst in final_users
-]
+final_edges = [(u, v, w) for u, v, w in final_edges if u in final_users and v in final_users]
+final_nodes = [(user, all_users[user]) for user in final_users]
 
-final_edges_cc = [
-    (src, dst, weight) for src, dst, weight in filtered_edges_cc
-    if src in final_users and dst in final_users
-]
+print(f"Final filtered users: {len(final_nodes)}")
+print(f"Final edges count: {len(final_edges)}")
 
-print(f"Total final edges identified: {len(final_edges_ac) + len(final_edges_cc)}")
-
-# Creating nodes csv file
+# CSV saving process
 with open('src/data/nodes.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
     writer.writerow(['id', 'engagement'])
     writer.writerows(final_nodes)
 
-# Creating edges csv file
 with open('src/data/edges.csv', 'w') as csv_file:
     writer = csv.writer(csv_file, delimiter=',')
     writer.writerow(['source', 'target', 'weight'])
-    writer.writerows(final_edges_ac)
-    writer.writerows(final_edges_cc)
+    writer.writerows(final_edges)
+
+print("Nodes and edges CSV exported successfully.")
