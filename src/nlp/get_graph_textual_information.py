@@ -9,6 +9,10 @@ from collections import Counter
 connection = sqlite3.connect('reddit-posts.db')
 cursor = connection.cursor()
 
+# Getting valid users
+df = pd.read_csv('src/data/nodes.csv')
+users = df['id'].tolist()
+
 # Retriving all texts for both posts and comments tables
 cursor.execute('''
     SELECT p.author, p.id, p.text, 'post' AS type
