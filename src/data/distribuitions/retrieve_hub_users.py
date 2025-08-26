@@ -3,7 +3,6 @@ import numpy as np
 import networkx as nx
 import json
 import igraph as ig
-import torch
 
 nodes = pd.read_csv('src/data/statistical_nodes.csv')
 edges = pd.read_csv('src/data/edges.csv')
