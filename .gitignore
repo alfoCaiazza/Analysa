@@ -36,3 +36,7 @@ src/nlp/topic_modeling/community_topic_counts.csv
 src/nlp/topic_modeling/hub_topic_counts.csv
 src/nlp/topic_modeling/top_n_topics.csv
 src/nlp/topic_modeling/topic_data.csv
+
+src/graph_dir/trash
+
+src/research_question/users_similarity.csv
