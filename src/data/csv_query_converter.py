@@ -14,11 +14,11 @@ cursor.execute('''
     FROM(
         SELECT p.author
         FROM posts AS p
-        WHERE p.author <> '[deleted]' AND p.num_comments <> 0
+        WHERE p.author <> '[deleted]' AND p.num_comments <> 0 AND p.date >= '2025-01-01'
         UNION ALL
         SELECT c.author
         FROM comments AS c
-        WHERE c.author <> '[deleted]' AND c.num_replies <> 0
+        WHERE c.author <> '[deleted]' AND c.num_replies <> 0 AND c.date >= '2025-01-01'
     ) GROUP BY author
 ''')
 
@@ -41,8 +41,9 @@ cursor.execute('''
     JOIN comments AS c ON p.id = c.post_id
     GROUP BY p.author, c.author
     HAVING (p.author <> '[deleted]' AND c.author <> '[deleted]')
-       AND (p.author <> c.author)
-       AND (p.text <> '[removed]' AND c.text <> '[removed]')
+        AND (p.author <> c.author)
+        AND (p.text <> '[removed]' AND c.text <> '[removed]')
+        AND (p.date >= '2025-01-01' AND c.date >= '2025-01-01') 
 ''')
 edges_type_ac = cursor.fetchall()
 
@@ -54,12 +55,10 @@ cursor.execute('''
         COUNT(*) as weight
     FROM comments c1
     JOIN comments c2 ON SUBSTR(c1.parent_id, 4) = c2.comment_id
-    WHERE c1.author <> '[deleted]' 
-        AND c2.author <> '[deleted]'
-        AND c1.text <> '[removed]'
-        AND c2.text <> '[removed]'
-        AND c1.author <> c2.author
-        AND c1.parent_id LIKE 't1_%'
+    WHERE c1.author <> '[deleted]' AND c2.author <> '[deleted]'
+        AND c1.text <> '[removed]' AND c2.text <> '[removed]'
+        AND c1.author <> c2.author AND c1.parent_id LIKE 't1_%'
+        AND c1.date >= '2025-01-01' AND c2.date >= '2025-01-01'
     GROUP BY c1.author, c2.author
 ''')
 edges_type_cc = cursor.fetchall()

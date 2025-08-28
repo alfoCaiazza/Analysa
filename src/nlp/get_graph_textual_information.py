@@ -17,11 +17,11 @@ users = df['id'].tolist()
 cursor.execute('''
     SELECT p.author, p.id, p.text, 'post' AS type
     FROM posts as p
-    WHERE p.text <> '[removed]'
+    WHERE p.text <> '[removed]' AND p.date >= '2025-01-01'
         UNION ALL
     SELECT c.author, c.comment_Id, c.text, 'comment' AS type
     FROM comments as c
-    WHERE C.text <> '[removed]'
+    WHERE c.text <> '[removed]' AND c.date >= '2025-01-01'
 ''')
 
 res = cursor.fetchall()
