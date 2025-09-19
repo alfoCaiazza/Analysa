@@ -63,6 +63,8 @@ cursor.execute('''
 ''')
 edges_type_cc = cursor.fetchall()
 
+print(f"Total edges: {len(edges_type_cc) + len(edges_type_ac)}")
+
 # Filtering valid users
 filtered_edges = [
     (src, dst, weight) for src, dst, weight in edges_type_ac + edges_type_cc
